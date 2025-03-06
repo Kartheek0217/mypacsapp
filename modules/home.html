@@ -1,0 +1,23 @@
+<!-- modules/home.html -->
+<div class="uk-container uk-container-small uk-margin-top">
+    <h2 class="uk-heading-line"><span>Home</span></h2>
+    <p>Welcome to the Home page! This content is dynamically loaded and cached for performance.</p>
+
+    <!-- Example of a reusable UI component: a dropdown menu using Alpine.js -->
+    <div x-data="{ open: false }" class="uk-inline uk-margin">
+        <button class="uk-button uk-button-default" @click="open = !open">Options</button>
+        <div class="uk-dropdown" x-show="open" @click.away="open = false">
+            <ul class="uk-nav uk-dropdown-nav">
+                <li><a href="#/profile">Profile</a></li>
+                <li><a href="#/settings">Settings</a></li>
+                <li><a href="#/logout" onclick="event.preventDefault(); logoutUser();">Logout</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Another example of a lazy-loaded image -->
+    <div class="uk-margin-top">
+        <img data-src="https://via.placeholder.com/400" alt="Lazy Loaded Home Image" width="400" height="300"
+            class="uk-border-rounded">
+    </div>
+</div>

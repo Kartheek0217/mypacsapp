@@ -1,0 +1,25 @@
+<!-- modules/login.html -->
+<div class="uk-container uk-container-small uk-margin-top">
+    <h2 class="uk-heading-line"><span>Login</span></h2>
+    <!-- Login form calls loginUser() on submission -->
+    <form id="loginForm" onsubmit="event.preventDefault(); loginUser();">
+        <div class="uk-margin">
+            <label class="uk-form-label" for="username">Username</label>
+            <div class="uk-form-controls">
+                <input class="uk-input" id="username" type="text" placeholder="Enter your username">
+            </div>
+        </div>
+        <div class="uk-margin">
+            <label class="uk-form-label" for="password">Password</label>
+            <div class="uk-form-controls">
+                <input class="uk-input" id="password" type="password" placeholder="Enter your password">
+            </div>
+        </div>
+        <button class="uk-button uk-button-primary" type="submit">Login</button>
+    </form>
+    <!-- Example lazy-loaded image (uses "data-src" attribute) -->
+    <div class="uk-margin-top">
+        <img data-src="https://via.placeholder.com/300" alt="Lazy Loaded Example" width="300" height="200"
+            class="uk-border-rounded">
+    </div>
+</div>

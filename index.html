@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Optimized Mobile Web App SPA</title>
+    <!-- UIkit CSS via CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.16.18/dist/css/uikit.min.css" />
+    <style>
+        /* Styles for the persistent bottom navigation bar */
+        #bottomNav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-top: 1px solid #ccc;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            z-index: 1000;
+        }
+
+        /* Prevent main content from being hidden behind the bottom nav */
+        #app {
+            margin-bottom: 70px;
+            /* Adjust based on nav height */
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Main container: Modules (pages) are dynamically loaded here -->
+    <div id="app">
+        <!-- Fallback content can be placed here if needed -->
+    </div>
+
+    <!-- Persistent Bottom Navigation Bar -->
+    <nav id="bottomNav">
+        <!-- Navigation items will be injected dynamically based on user role -->
+    </nav>
+
+    <!-- Progressive Enhancement: Inform users if JavaScript is disabled -->
+    <noscript>
+        <div class="uk-alert-danger" uk-alert>
+            <p>This application requires JavaScript to function properly. Please enable JavaScript in your browser.</p>
+        </div>
+    </noscript>
+
+    <!-- CDN Libraries -->
+    <!-- Alpine.js for component interactivity -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.12.0/dist/cdn.min.js" defer></script>
+    <!-- UIkit JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.18/dist/js/uikit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.18/dist/js/uikit-icons.min.js"></script>
+    <!-- Axios for API calls -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- SweetAlert2 for alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Day.js for date/time manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs/dayjs.min.js"></script>
+
+    <!-- Application Scripts -->
+    <script>
+        /**
+         * Router Module: Manages client-side routing with lazy loading and caching.
+         */
+        const Router = (function () {
+            // Routes mapping (e.g., '/login' => callback)
+            const routes = {};
+            // Cache for storing loaded module HTML (page caching)
+            const pageCache = {};
+            // Cache for reusable UI components (component caching)
+            const componentCache = {};
+
+            /**
+             * Registers a new route.
+             * @param {string} path - The route path (e.g., '/login').
+             * @param {Function} callback - The function to call when the route is activated.
+             */
+            function addRoute(path, callback) {
+                routes[path] = callback;
+            }
+
+            /**
+             * Clears cached pages and components.
+             * Useful when data changes or during logout.
+             */
+            function clearCache() {
+                for (let key in pageCache) {
+                    if (pageCache.hasOwnProperty(key)) {
+                        delete pageCache[key];
+                    }
+                }
+                for (let key in componentCache) {
+                    if (componentCache.hasOwnProperty(key)) {
+                        delete componentCache[key];
+                    }
+                }
+            }
+
+            /**
+             * Navigates to the route based on the current URL hash.
+             */
+            function navigate() {
+                const hash = window.location.hash.slice(1) || '/';
+                if (routes[hash]) {
+                    routes[hash]();
+                } else {
+                    console.error('Route not found:', hash);
+                }
+            }
+
+            // Listen for hash changes and on initial page load.
+            window.addEventListener('hashchange', navigate);
+            window.addEventListener('load', navigate);
+
+            // Expose public API and caches.
+            return {
+                addRoute,
+                navigate,
+                pageCache,
+                componentCache,
+                clearCache
+            };
+        })();
+
+        /**
+         * Loads an HTML module (page) from the "modules" folder using lazy loading.
+         * Also caches the module's HTML for faster subsequent loads.
+         * @param {string} moduleName - The name of the module (e.g., 'login', 'home').
+         */
+        function loadModule(moduleName) {
+            const appContainer = document.getElementById('app');
+
+            // If the module is cached, render it immediately.
+            if (Router.pageCache[moduleName]) {
+                appContainer.innerHTML = Router.pageCache[moduleName];
+                // Initialize lazy loading for images in the module.
+                initLazyLoadImages();
+                return;
+            }
+
+            // Construct module URL.
+            const moduleUrl = 'modules/' + moduleName + '.html';
+
+            // Fetch module HTML using Axios.
+            axios.get(moduleUrl)
+                .then(response => {
+                    // Cache the module HTML.
+                    Router.pageCache[moduleName] = response.data;
+                    appContainer.innerHTML = response.data;
+                    // Set up lazy loading for images within the module.
+                    initLazyLoadImages();
+                })
+                .catch(error => {
+                    console.error('Error loading module:', error);
+                    appContainer.innerHTML = '<p>Error loading content.</p>';
+                });
+        }
+
+        /**
+         * Sets up lazy loading for images using the IntersectionObserver API.
+         * Images to be lazy loaded must use the "data-src" attribute.
+         */
+        function initLazyLoadImages() {
+            const lazyImages = document.querySelectorAll('img[data-src]');
+            const config = {
+                rootMargin: '50px 0px',
+                threshold: 0.01
+            };
+
+            if ('IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries, self) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            preloadImage(entry.target);
+                            self.unobserve(entry.target);
+                        }
+                    });
+                }, config);
+
+                lazyImages.forEach(image => {
+                    observer.observe(image);
+                });
+            } else {
+                // Fallback: Load all images if IntersectionObserver is unsupported.
+                lazyImages.forEach(image => {
+                    preloadImage(image);
+                });
+            }
+        }
+
+        /**
+         * Loads an image by replacing its "data-src" attribute with "src".
+         * @param {HTMLImageElement} img - The image element to load.
+         */
+        function preloadImage(img) {
+            const src = img.getAttribute('data-src');
+            if (!src) return;
+            img.src = src;
+            img.removeAttribute('data-src');
+        }
+
+        /**
+         * Renders the bottom navigation bar based on the user's role.
+         * Uses component caching to avoid unnecessary re-rendering.
+         * @param {string|null} userRole - The user's role (e.g., 'admin', 'user') or null if not logged in.
+         */
+        function renderBottomNav(userRole) {
+            const navBar = document.getElementById('bottomNav');
+
+            // Check if the bottom nav is already cached for this role.
+            if (Router.componentCache.bottomNav && Router.componentCache.bottomNav.role === userRole) {
+                navBar.innerHTML = Router.componentCache.bottomNav.html;
+                return;
+            }
+
+            // Define nav items based on role.
+            let navItems = [];
+            if (userRole === 'admin') {
+                navItems = [
+                    { name: 'Dashboard', link: '#/dashboard' },
+                    { name: 'Users', link: '#/users' },
+                    { name: 'Settings', link: '#/settings' },
+                    { name: 'Logout', link: '#/logout', action: logoutUser }
+                ];
+            } else if (userRole === 'user') {
+                navItems = [
+                    { name: 'Home', link: '#/home' },
+                    { name: 'Profile', link: '#/profile' },
+                    { name: 'Settings', link: '#/settings' },
+                    { name: 'Logout', link: '#/logout', action: logoutUser }
+                ];
+            } else {
+                // Not logged in.
+                navItems = [
+                    { name: 'Home', link: '#/home' },
+                    { name: 'Login', link: '#/login' }
+                ];
+            }
+
+            // Build HTML for the nav items.
+            let navHtml = '';
+            navItems.forEach(item => {
+                navHtml += `<a href="${item.link}" class="uk-button uk-button-default"`;
+                if (item.action) {
+                    navHtml += ` onclick="event.preventDefault(); ${item.action.name}();"`;
+                }
+                navHtml += `>${item.name}</a>`;
+            });
+
+            navBar.innerHTML = navHtml;
+            // Cache the rendered bottom nav.
+            Router.componentCache.bottomNav = {
+                role: userRole,
+                html: navHtml
+            };
+        }
+
+        /**
+         * Handles user login.
+         * Validates the form, calls the backend API, updates caches,
+         * and renders the appropriate navigation bar upon success.
+         */
+        function loginUser() {
+            const userName = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Basic client-side validation.
+            if (!userName || !password) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Please enter both username and password.'
+                });
+                return;
+            }
+
+            // Replace the URL below with your actual backend API endpoint.
+            axios.post('http://localhost:8999/auth/authenticate', { userName, password })
+                .then(response => {
+                    if (response.data.success) {
+                        const userRole = response.data.userRole;
+                        // Store the role in localStorage for persistence.
+                        localStorage.setItem('userRole', userRole);
+                        renderBottomNav(userRole);
+                        window.location.hash = '/home';
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Login Successful',
+                            text: 'Welcome!'
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Login Failed',
+                            text: response.data.message || 'Invalid credentials.'
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Login error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'An error occurred during login.'
+                    });
+                });
+        }
+
+        /**
+         * Logs out the user.
+         * Clears caches and local storage, then redirects to the login module.
+         */
+        function logoutUser() {
+            localStorage.removeItem('userRole');
+            Router.clearCache();
+            renderBottomNav(null);
+            window.location.hash = '/login';
+            Swal.fire({
+                icon: 'success',
+                title: 'Logged Out',
+                text: 'You have been successfully logged out.'
+            });
+        }
+
+        // Define application routes using the Router module.
+        Router.addRoute('/', function () {
+            const storedRole = localStorage.getItem('userRole');
+            if (storedRole) {
+                renderBottomNav(storedRole);
+                loadModule('home');
+            } else {
+                loadModule('login');
+            }
+        });
+        Router.addRoute('/login', () => loadModule('login'));
+        Router.addRoute('/home', () => loadModule('home'));
+        Router.addRoute('/dashboard', () => loadModule('dashboard'));
+        Router.addRoute('/users', () => loadModule('users'));
+        Router.addRoute('/profile', () => loadModule('profile'));
+        Router.addRoute('/settings', () => loadModule('settings'));
+        // Special logout route
+        Router.addRoute('/logout', () => logoutUser());
+    </script>
+</body>
+
+</html>
